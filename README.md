@@ -1,4 +1,4 @@
-# objectDetection
+# Sight Helper Source Code
 
 Code review: https://youtu.be/XrHoI9KBJaQ
 
