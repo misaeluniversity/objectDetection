@@ -1,147 +1,148 @@
-# USAGE
-# python3 real_time_object_detection.py --prototxt MobileNetSSD_deploy.prototxt.txt --model MobileNetSSD_deploy.caffemodel
+# Instructions to use
+# python3 (Object Detection Class) --protoFile (path for the prototxt) --modelFile (path for the model)
 
-# import the necessary packages
-import numpy as np
-import argparse
+# Example
+# python3 real_time_object_detection.py --protoFile ProtoTextConf.txt --modelFile TrainModel.caffemodel
+
+########## Importing the necessary packages ##########
+
+#Library with funtions for image handleing
 import imutils
-import time
+
+#Computer Vision Library
 import cv2
-import pyttsx3
+
+#Speach Library
+import pyttsx3 as se
+
+#Library with scientific funtions
+import numpy as np
+
+#Library with  command-line interfaces funtions
+import argparse as argp
+
+#Library for image handleling
 from PIL import Image
+
+#Google AIY drivers
 from aiy.board import Board
+
+#Library for handleling PiCamera
 from picamera import PiCamera
-
-
 
 #Initialize Camera and set the resolution
 camera = PiCamera(resolution = (320,240))
 
 #Initialization of the voice engine
-engine = pyttsx3.init()
+speakMotor = se.init()
 
-# Set properties of the voice engine
-engine.setProperty('rate', 150)    # Speed percent (can go over 100)
-engine.setProperty('volume', 0.9)  # Volume 0-1
+########## Set properties of the voice engine ##########
 
-#Set language of the voice engine to English
-voices = engine.getProperty('voices')
-for voice in voices:
-    print (voice)
-    if voice.languages[0] == u'en_US':
-        engine.setProperty('voice', voice.id)
+# Speed percent (can go over 100)
+speakMotor.setProperty('rate', 150)
+
+# Volume 0-1
+speakMotor.setProperty('volume', 0.9)  
+
+#Setting language of the voice (language) engine to English
+languages = speakMotor.getProperty('voices')
+
+#Looping through the languages and selecting english
+for language in languages:
+    
+    print ("[INFO] "+str(language)+"\n")
+    
+    if language.languages[0] == u'en_US':
+        speakMotor.setProperty('voice', language.id)
         break
 
-#Construct the argument parse and parse the arguments
-ap = argparse.ArgumentParser()
-ap.add_argument("-p", "--prototxt", required=True,
-    help="path to Caffe 'deploy' prototxt file")
-ap.add_argument("-m", "--model", required=True,
-    help="path to Caffe pre-trained model")
-ap.add_argument("-c", "--confidence", type=float, default=0.2,
-    help="minimum probability to filter weak detections")
-args = vars(ap.parse_args())
+########## Parsing and Creation of initial arguments ##########
 
-# initialize the list of class labels MobileNet SSD was trained to
-# detect, then generate a set of bounding box colors for each class
-CLASSES = ["background", "aeroplane", "bicycle", "bird", "boat",
-    "bottle", "bus", "car", "cat", "chair", "cow", "diningtable",
-    "dog", "horse", "motorbike", "person", "pottedplant", "sheep",
-    "sofa", "train", "tvmonitor"]
-COLORS = np.random.uniform(0, 255, size=(len(CLASSES), 3))
+argumentsParsed = argp.ArgumentParser()
 
-# load our serialized model from disk
-print("[INFO] loading model...")
-net = cv2.dnn.readNetFromCaffe(args["prototxt"], args["model"])
+#Parsing argument for the prototxt file 
+argumentsParsed.add_argument("-p", "--protoFile", required=True,
+    help="path for the prototxt file that is going to be deploy")
 
-print("Model and libraries loaded...")
+#Parsing argument for the model file
+argumentsParsed.add_argument("-m", "--modelFile", required=True,
+    help="path for the file the contain the train model")
+
+#Parsing argument for setting the confidence level
+argumentsParsed.add_argument("-c", "--confidenceLevel", type=float, default=0.4,
+    help="level of probability for the minimum detections")
+
+#Setting dictionary of arguments for application
+arguments = vars(argumentsParsed.parse_args())
+
+########## Initializing the list of labels difine in the model ##########
+
+TRAIN_LABELS = ["bus", "car", "background",
+                "aeroplane", "bicycle", "bottle",
+                "cat", "chair", "dog", "horse",
+                "motorbike","cow", "diningtable",
+                "person", "pottedplant", "sheep",
+                "sofa", "bird", "boat", "train", "tvmonitor"]
+
+########## Initializing train model ##########
+
+print("[INFO] Initializing train model...\n")
+
+trainNetwork = cv2.dnn.readNetFromCaffe(arguments["protoFile"], arguments["modelFile"])
+
+print("[INFO] Model and libraries loaded...\n")
 
 
 # loop over to process image
 while True:
     #Wait for the button to trigger the camera and process the image
-    with Board() as board:
-        print('Press button to start recording.')
-        board.button.wait_for_press()
+    with Board() as voiceBoard:
+        
+        print('[INFO] Press button to start recording.\n')
+        voiceBoard.button.wait_for_press()
         listObjects = []
     
-
         #taking photo
-        camera.capture('room_ser.jpg')
+        camera.capture('picture.jpg')
 
-        print("star loading image")
+        print("[INFO] Loading image.\n")
 
         # Loading image
-        img = cv2.imread("room_ser.jpg")
+        img = cv2.imread("picture.jpg")
 
+        image = cv2.imread("picture.jpg")
+        
+        image = imutils.resize(image, width=400)
 
-        frame = cv2.imread("room_ser.jpg") 
-        frame = imutils.resize(frame, width=400)
-
-        # grab the frame dimensions and convert it to a blob
-        (h, w) = frame.shape[:2]
-        blob = cv2.dnn.blobFromImage(cv2.resize(frame, (300, 300)),
+        # Transforming the image to blob that the Deep Neural Network could read
+        ImageBlob = cv2.dnn.blobFromImage(cv2.resize(image, (300, 300)),
             0.007843, (300, 300), 127.5)
 
-        # pass the blob through the network and obtain the detections and
-        # predictions
-        net.setInput(blob)
-        detections = net.forward()
+        # Passing the blob through the Deep Neural Network
+        trainNetwork.setInput(ImageBlob)
+        
+        # Getting the predictons from the Deep Neural Network based on the blob
+        results = trainNetwork.forward()
 
-        # loop over the detections
-        for i in np.arange(0, detections.shape[2]):
-            # extract the confidence (i.e., probability) associated with
-            # the prediction
-            confidence = detections[0, 0, i, 2]
+        # Evaluating the results from the Deep Neural Network
+        for i in np.arange(0, results.shape[2]):
+            # Collecting the cofidence level of the elements detected by Deep Neural Network
+            confidenceLevel = results[0, 0, i, 2]
 
-            # filter out weak detections by ensuring the `confidence` is
-            # greater than the minimum confidence
-            if confidence > args["confidence"]:
-                # extract the index of the class label from the
-                # `detections`, then compute the (x, y)-coordinates of
-                # the bounding box for the object
-                idx = int(detections[0, 0, i, 1])
-                box = detections[0, 0, i, 3:7] * np.array([w, h, w, h])
-                (startX, startY, endX, endY) = box.astype("int")
-
-                # draw the prediction on the frame
-                label = "{}: {:.2f}%".format(CLASSES[idx],
-                    confidence * 100)
-                    
-                listObjects.append(CLASSES[idx])
-                    
-                cv2.rectangle(frame, (startX, startY), (endX, endY),
-                    COLORS[idx], 2)
-                y = startY - 15 if startY - 15 > 15 else startY + 15
-                cv2.putText(frame, label, (startX, y),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, COLORS[idx], 2)
+            # Selecting the results that meet the confidence level
+            if confidenceLevel > arguments["confidenceLevel"]:
+                # Selecting the index of the labels from the predictions 
+                idx = int(results[0, 0, i, 1])
+                
+                # Appending labels of detected elements
+                listObjects.append(TRAIN_LABELS[idx])                  
 
         #Say object detected
         for element in listObjects:
-            print (element)
-            engine.say(element)
-            engine.runAndWait()
+            print ("[INFO] "+element+"\n")
+            speakMotor.say(element)
+            speakMotor.runAndWait()
         if len(listObjects) == 0:
-            print ("No objects Detected")
-            engine.say("No objects Detected")
-            engine.runAndWait()
-
-        # show the output frame
-        #cv2.imshow("Frame", frame)
-        key = cv2.waitKey(1) & 0xFF
-
-        # if the `q` key was pressed, break from the loop
-        if key == ord("q"):
-            break
-
-        # update the FPS counter
-        #fps.update()
-
-# stop the timer and display FPS information
-#fps.stop()
-#print("[INFO] elapsed time: {:.2f}".format(fps.elapsed()))
-#print("[INFO] approx. FPS: {:.2f}".format(fps.fps()))
-
-# do a bit of cleanup
-cv2.destroyAllWindows()
-#vs.stop()
+            print ("[INFO] No objects Detected.\n")
+            speakMotor.say("No objects Detected")
+            speakMotor.runAndWait()
